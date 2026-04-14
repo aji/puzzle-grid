@@ -9,7 +9,7 @@ struct ArrayAccess {
     cols: usize,
     row_stride: isize,
     col_stride: isize,
-    offset: usize,
+    offset: isize,
 }
 
 impl ArrayAccess {
@@ -27,9 +27,11 @@ impl ArrayAccess {
         self.rows * self.cols
     }
 
-    fn to_offset(&self, row: usize, col: usize) -> usize {
-        assert!(row < self.rows && col < self.cols);
-        self.offset + (self.row_stride * row as isize + self.col_stride * col as isize) as usize
+    fn to_offset(&self, row: isize, col: isize) -> isize {
+        let base_offset = self.offset as isize;
+        let row_offset = self.row_stride * row;
+        let col_offset = self.col_stride * col;
+        base_offset + row_offset + col_offset
     }
 
     fn view(&self, row0: usize, col0: usize, rows: usize, cols: usize) -> ArrayAccess {
@@ -42,7 +44,7 @@ impl ArrayAccess {
             cols,
             row_stride: self.row_stride,
             col_stride: self.col_stride,
-            offset: self.to_offset(row0, col0),
+            offset: self.to_offset(row0 as isize, col0 as isize),
         }
     }
 
@@ -55,9 +57,59 @@ impl ArrayAccess {
             offset: self.offset,
         }
     }
+
+    fn flip_h(&self) -> ArrayAccess {
+        ArrayAccess {
+            rows: self.rows,
+            cols: self.cols,
+            row_stride: self.row_stride,
+            col_stride: -self.col_stride,
+            offset: self.to_offset(0, self.cols as isize - 1),
+        }
+    }
+
+    fn flip_v(&self) -> ArrayAccess {
+        ArrayAccess {
+            rows: self.rows,
+            cols: self.cols,
+            row_stride: -self.row_stride,
+            col_stride: self.col_stride,
+            offset: self.to_offset(self.rows as isize - 1, 0),
+        }
+    }
+
+    fn rotate_cw(&self) -> ArrayAccess {
+        ArrayAccess {
+            rows: self.cols,
+            cols: self.rows,
+            row_stride: self.col_stride,
+            col_stride: -self.row_stride,
+            offset: self.to_offset(self.rows as isize - 1, 0),
+        }
+    }
+
+    fn rotate_180(&self) -> ArrayAccess {
+        ArrayAccess {
+            rows: self.rows,
+            cols: self.cols,
+            row_stride: -self.row_stride,
+            col_stride: -self.col_stride,
+            offset: self.to_offset(self.rows as isize - 1, self.cols as isize - 1),
+        }
+    }
+
+    fn rotate_ccw(&self) -> ArrayAccess {
+        ArrayAccess {
+            rows: self.cols,
+            cols: self.rows,
+            row_stride: -self.col_stride,
+            col_stride: self.row_stride,
+            offset: self.to_offset(0, self.cols as isize - 1),
+        }
+    }
 }
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub struct Array<T, B> {
     access: ArrayAccess,
     buffer: B,
@@ -65,16 +117,59 @@ pub struct Array<T, B> {
 }
 
 impl<T, B> Array<T, B> {
+    pub fn unwrap(self) -> B {
+        self.buffer
+    }
+
     pub fn len(&self) -> usize {
         self.access.len()
     }
 
-    pub fn transpose(self) -> Self {
+    pub fn rows(&self) -> usize {
+        self.access.rows
+    }
+
+    pub fn cols(&self) -> usize {
+        self.access.cols
+    }
+
+    pub fn shape(&self) -> (usize, usize) {
+        (self.rows(), self.cols())
+    }
+
+    fn map_access<F>(self, f: F) -> Self
+    where
+        F: FnOnce(&ArrayAccess) -> ArrayAccess,
+    {
         Array {
-            access: self.access.transpose(),
+            access: f(&self.access),
             buffer: self.buffer,
             _phantom: PhantomData,
         }
+    }
+
+    pub fn transpose(self) -> Self {
+        self.map_access(ArrayAccess::transpose)
+    }
+
+    pub fn flip_h(self) -> Self {
+        self.map_access(ArrayAccess::flip_h)
+    }
+
+    pub fn flip_v(self) -> Self {
+        self.map_access(ArrayAccess::flip_v)
+    }
+
+    pub fn rotate_cw(self) -> Self {
+        self.map_access(ArrayAccess::rotate_cw)
+    }
+
+    pub fn rotate_180(self) -> Self {
+        self.map_access(ArrayAccess::rotate_180)
+    }
+
+    pub fn rotate_ccw(self) -> Self {
+        self.map_access(ArrayAccess::rotate_ccw)
     }
 }
 
@@ -173,9 +268,11 @@ where
     type Output = T;
 
     fn index(&self, (row, col): (usize, usize)) -> &Self::Output {
-        let idx = self.access.to_offset(row, col);
+        assert!(row < self.rows() && col < self.cols());
+        let idx = self.access.to_offset(row as isize, col as isize);
         let buf = self.buffer.as_ref();
-        &buf[idx]
+        assert!(0 <= idx && (idx as usize) < buf.len());
+        &buf[idx as usize]
     }
 }
 
@@ -184,8 +281,10 @@ where
     B: AsRef<[T]> + AsMut<[T]>,
 {
     fn index_mut(&mut self, (row, col): (usize, usize)) -> &mut Self::Output {
-        let idx = self.access.to_offset(row, col);
+        assert!(row < self.rows() && col < self.cols());
+        let idx = self.access.to_offset(row as isize, col as isize);
         let buf = self.buffer.as_mut();
-        &mut buf[idx]
+        assert!(0 <= idx && (idx as usize) < buf.len());
+        &mut buf[idx as usize]
     }
 }
