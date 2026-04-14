@@ -200,3 +200,54 @@ pub fn test_array_view_mut_flip_h() {
     assert_eq!(row4(&arr, 2), [9, 10, 11, 99]);
     assert_eq!(row4(&arr, 3), [13, 14, 98, 16]);
 }
+
+#[test]
+pub fn test_array_iter() {
+    let arr = array2x3();
+    let res: Vec<usize> = arr.iter().copied().collect();
+    assert_eq!(res, &[1, 2, 3, 4, 5, 6]);
+}
+
+#[test]
+pub fn test_array_view_iter() {
+    let arr = array4x4();
+    let arr = arr.view(2, 1, 2, 3);
+    let res: Vec<usize> = arr.iter().copied().collect();
+    assert_eq!(res, &[10, 11, 12, 14, 15, 16]);
+}
+
+#[test]
+pub fn test_array_flip_h_iter() {
+    let arr = array2x3().flip_h();
+    let res: Vec<usize> = arr.iter().copied().collect();
+    assert_eq!(res, &[3, 2, 1, 6, 5, 4]);
+}
+
+#[test]
+pub fn test_array_view_flip_h_iter() {
+    let arr = array4x4();
+    let arr = arr.view(2, 1, 2, 3).flip_h();
+    let res: Vec<usize> = arr.iter().copied().collect();
+    assert_eq!(res, &[12, 11, 10, 16, 15, 14]);
+}
+
+#[test]
+pub fn test_array_iter_mut() {
+    let mut arr = array2x3();
+    arr.iter_mut().enumerate().for_each(|(i, x)| *x *= i);
+    assert_eq!(row3(arr, 0), [0, 2, 6]);
+    assert_eq!(row3(arr, 1), [12, 20, 30]);
+}
+
+#[test]
+pub fn test_array_view_iter_mut() {
+    let mut arr = array4x4();
+    arr.view_mut(2, 1, 2, 3)
+        .iter_mut()
+        .enumerate()
+        .for_each(|(i, x)| *x *= i);
+    assert_eq!(row4(&arr, 0), [1, 2, 3, 4]);
+    assert_eq!(row4(&arr, 1), [5, 6, 7, 8]);
+    assert_eq!(row4(&arr, 2), [9, 0, 11, 24]);
+    assert_eq!(row4(&arr, 3), [13, 42, 60, 80]);
+}

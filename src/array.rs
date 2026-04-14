@@ -3,6 +3,10 @@ use std::{
     ops::{Index, IndexMut},
 };
 
+// NOTE: it is critical for correctness that aliasing ArrayAccesses, i.e. those
+// that map distinct (row, col) accesses to the same buffer index, are never
+// created.
+
 #[derive(Copy, Clone)]
 struct ArrayAccess {
     rows: usize,
@@ -208,6 +212,14 @@ where
             _phantom: PhantomData,
         }
     }
+
+    pub fn iter<'a>(&'a self) -> Iter<'a, T> {
+        Iter {
+            access: self.access,
+            buffer: self.buffer.as_ref(),
+            next: 0,
+        }
+    }
 }
 
 impl<T, B> Array<T, B>
@@ -233,6 +245,14 @@ where
             access: self.access.view(row0, col0, rows, cols),
             buffer: self.buffer.as_mut(),
             _phantom: PhantomData,
+        }
+    }
+
+    pub fn iter_mut<'a>(&'a mut self) -> IterMut<'a, T> {
+        IterMut {
+            access: self.access,
+            buffer: self.buffer.as_mut(),
+            next: 0,
         }
     }
 }
@@ -286,5 +306,59 @@ where
         let buf = self.buffer.as_mut();
         assert!(0 <= idx && (idx as usize) < buf.len());
         &mut buf[idx as usize]
+    }
+}
+
+pub struct Iter<'a, T> {
+    access: ArrayAccess,
+    buffer: &'a [T],
+    next: usize,
+}
+
+impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.next >= self.access.len() {
+            return None;
+        }
+
+        let index = self.next;
+        self.next += 1;
+
+        let row = index / self.access.cols;
+        let col = index % self.access.cols;
+        let idx = self.access.to_offset(row as isize, col as isize);
+
+        Some(&self.buffer[idx as usize])
+    }
+}
+
+pub struct IterMut<'a, T> {
+    access: ArrayAccess,
+    buffer: &'a mut [T],
+    next: usize,
+}
+
+impl<'a, T> Iterator for IterMut<'a, T> {
+    type Item = &'a mut T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.next >= self.access.len() {
+            return None;
+        }
+
+        let index = self.next;
+        self.next += 1;
+
+        let row = index / self.access.cols;
+        let col = index % self.access.cols;
+        let idx = self.access.to_offset(row as isize, col as isize);
+
+        // SAFETY: ArrayAccess can never be aliasing
+        unsafe {
+            assert!(0 <= idx && (idx as usize) < self.buffer.len());
+            self.buffer.as_mut_ptr().add(idx as usize).as_mut()
+        }
     }
 }
