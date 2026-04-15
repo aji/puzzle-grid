@@ -237,6 +237,19 @@ impl<T, B> Array<T, B> {
     }
 }
 
+impl<T> ArrayBuffer<T> {
+    pub fn new_default(rows: usize, cols: usize) -> ArrayBuffer<T>
+    where
+        T: Default,
+    {
+        (0..rows * cols)
+            .map(|_| T::default())
+            .collect::<Self>()
+            .reshape(rows, cols)
+            .unwrap()
+    }
+}
+
 impl<'a, T: Clone> ArrayCow<'a, T> {
     pub fn into_owned(self) -> ArrayBuffer<T> {
         match self.buffer {
