@@ -300,3 +300,12 @@ pub fn test_array_non_contiguous_reshape() {
     assert!(arr.reshape(1, 6).is_none());
     assert!(arr.as_contiguous().reshape(1, 6).is_some());
 }
+
+#[test]
+pub fn test_array_spaced() {
+    let arr = array4x4();
+    let arr = arr.spaced(1, 2);
+    assert_eq!(arr.shape(), (2, 2));
+    assert_eq!(row2(&arr, 0), [1, 4]);
+    assert_eq!(row2(&arr, 1), [9, 12]);
+}

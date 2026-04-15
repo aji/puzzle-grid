@@ -76,6 +76,18 @@ impl ArrayAccess {
         }
     }
 
+    fn spaced(&self, rows: usize, cols: usize) -> ArrayAccess {
+        let nr = rows + 1;
+        let nc = cols + 1;
+        ArrayAccess {
+            rows: (self.rows + rows) / nr,
+            cols: (self.cols + rows) / nr,
+            row_stride: self.row_stride * nr as isize,
+            col_stride: self.col_stride * nc as isize,
+            offset: self.offset,
+        }
+    }
+
     fn transpose(&self) -> ArrayAccess {
         ArrayAccess {
             rows: self.cols,
@@ -192,6 +204,14 @@ impl<T, B> Array<T, B> {
         })
     }
 
+    pub fn reshape(self, rows: usize, cols: usize) -> Option<Self> {
+        self.try_map_access(|a| a.reshape(rows, cols))
+    }
+
+    pub fn spaced(self, rows: usize, cols: usize) -> Self {
+        self.map_access(|a| a.spaced(rows, cols))
+    }
+
     pub fn transpose(self) -> Self {
         self.map_access(ArrayAccess::transpose)
     }
@@ -214,10 +234,6 @@ impl<T, B> Array<T, B> {
 
     pub fn rotate_ccw(self) -> Self {
         self.map_access(ArrayAccess::rotate_ccw)
-    }
-
-    pub fn reshape(self, rows: usize, cols: usize) -> Option<Self> {
-        self.try_map_access(|a| a.reshape(rows, cols))
     }
 }
 
