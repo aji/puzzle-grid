@@ -405,7 +405,12 @@ impl<'a, T: Clone> ArrayCow<'a, T> {
     /// buffer is borrowed, the data will be cloned.
     pub fn into_owned(self) -> ArrayVec<T> {
         match self.buffer {
-            Cow::Borrowed(_) => self.iter().cloned().collect(),
+            Cow::Borrowed(_) => self
+                .iter()
+                .cloned()
+                .collect::<ArrayVec<_>>()
+                .reshape(self.rows(), self.cols())
+                .unwrap(),
             Cow::Owned(buffer) => Array {
                 access: self.access,
                 buffer,
