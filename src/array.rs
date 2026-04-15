@@ -419,6 +419,28 @@ impl<'a, T: Clone> ArrayCow<'a, T> {
     }
 }
 
+impl<'a, T: Clone> ArrayView<'a, T> {
+    // Converts this `Array` into one backed by a `Vec<T>`.
+    pub fn into_owned(self) -> ArrayVec<T> {
+        self.iter()
+            .cloned()
+            .collect::<ArrayVec<_>>()
+            .reshape(self.rows(), self.cols())
+            .unwrap()
+    }
+}
+
+impl<'a, T: Clone> ArrayViewMut<'a, T> {
+    // Converts this `Array` into one backed by a `Vec<T>`.
+    pub fn into_owned(self) -> ArrayVec<T> {
+        self.iter()
+            .cloned()
+            .collect::<ArrayVec<_>>()
+            .reshape(self.rows(), self.cols())
+            .unwrap()
+    }
+}
+
 impl<'a, T> ArrayView<'a, T> {
     /// Converts this `Array` into a view of the given row.
     ///
