@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     marker::PhantomData,
     ops::{Index, IndexMut},
 };
@@ -31,6 +32,12 @@ impl ArrayAccess {
         self.rows * self.cols
     }
 
+    /// Returns whether iterating over this ArrayAccess in row-major order
+    /// visits a contiguous chunk of the buffer at increasing indices.
+    fn is_contiguous_increasing(&self) -> bool {
+        self.col_stride == 1 && (self.row_stride == self.cols as isize || self.rows <= 1)
+    }
+
     fn to_offset(&self, row: isize, col: isize) -> isize {
         let base_offset = self.offset as isize;
         let row_offset = self.row_stride * row;
@@ -49,6 +56,23 @@ impl ArrayAccess {
             row_stride: self.row_stride,
             col_stride: self.col_stride,
             offset: self.to_offset(row0 as isize, col0 as isize),
+        }
+    }
+
+    fn reshape(&self, rows: usize, cols: usize) -> Option<ArrayAccess> {
+        if self.rows * self.cols != rows * cols {
+            return None;
+        }
+        if self.is_contiguous_increasing() {
+            Some(ArrayAccess {
+                rows,
+                cols,
+                row_stride: cols as isize,
+                col_stride: 1,
+                offset: self.offset,
+            })
+        } else {
+            None
         }
     }
 
@@ -120,6 +144,11 @@ pub struct Array<T, B> {
     _phantom: PhantomData<T>,
 }
 
+pub type ArrayBuffer<T> = Array<T, Vec<T>>;
+pub type ArrayCow<'a, T> = Array<T, Cow<'a, [T]>>;
+pub type ArrayView<'a, T> = Array<T, &'a [T]>;
+pub type ArrayViewMut<'a, T> = Array<T, &'a mut [T]>;
+
 impl<T, B> Array<T, B> {
     pub fn unwrap(self) -> B {
         self.buffer
@@ -152,6 +181,17 @@ impl<T, B> Array<T, B> {
         }
     }
 
+    fn try_map_access<F>(self, f: F) -> Option<Self>
+    where
+        F: FnOnce(&ArrayAccess) -> Option<ArrayAccess>,
+    {
+        Some(Array {
+            access: f(&self.access)?,
+            buffer: self.buffer,
+            _phantom: PhantomData,
+        })
+    }
+
     pub fn transpose(self) -> Self {
         self.map_access(ArrayAccess::transpose)
     }
@@ -175,6 +215,23 @@ impl<T, B> Array<T, B> {
     pub fn rotate_ccw(self) -> Self {
         self.map_access(ArrayAccess::rotate_ccw)
     }
+
+    pub fn reshape(self, rows: usize, cols: usize) -> Option<Self> {
+        self.try_map_access(|a| a.reshape(rows, cols))
+    }
+}
+
+impl<'a, T: Clone> ArrayCow<'a, T> {
+    pub fn into_owned(self) -> ArrayBuffer<T> {
+        match self.buffer {
+            Cow::Borrowed(_) => self.iter().cloned().collect(),
+            Cow::Owned(buffer) => Array {
+                access: self.access,
+                buffer,
+                _phantom: PhantomData,
+            },
+        }
+    }
 }
 
 impl<T, B> Array<T, B>
@@ -188,6 +245,30 @@ where
             access,
             buffer: buf,
             _phantom: PhantomData,
+        }
+    }
+
+    pub fn flat(buf: B) -> Array<T, B> {
+        Array::new(1, buf.as_ref().len(), buf)
+    }
+
+    pub fn as_contiguous<'a>(&'a self) -> ArrayCow<'a, T>
+    where
+        T: Clone,
+    {
+        if self.access.is_contiguous_increasing() {
+            Array {
+                access: self.access,
+                buffer: Cow::Borrowed(self.buffer.as_ref()),
+                _phantom: PhantomData,
+            }
+        } else {
+            let buffer = self.iter().cloned().collect();
+            Array {
+                access: ArrayAccess::new(self.rows(), self.cols()),
+                buffer: Cow::Owned(buffer),
+                _phantom: PhantomData,
+            }
         }
     }
 
@@ -306,6 +387,15 @@ where
         let buf = self.buffer.as_mut();
         assert!(0 <= idx && (idx as usize) < buf.len());
         &mut buf[idx as usize]
+    }
+}
+
+impl<T, B> FromIterator<T> for Array<T, B>
+where
+    B: FromIterator<T> + AsRef<[T]>,
+{
+    fn from_iter<It: IntoIterator<Item = T>>(iter: It) -> Self {
+        Array::flat(B::from_iter(iter))
     }
 }
 

@@ -25,6 +25,13 @@ fn row4<B: AsRef<[usize]>>(arr: impl Borrow<Array<usize, B>>, row: usize) -> [us
     [arr[(row, 0)], arr[(row, 1)], arr[(row, 2)], arr[(row, 3)]]
 }
 
+fn is_borrowed<'a, T: Clone>(cow: &std::borrow::Cow<'a, [T]>) -> bool {
+    match cow {
+        std::borrow::Cow::Borrowed(_) => true,
+        std::borrow::Cow::Owned(_) => false,
+    }
+}
+
 #[test]
 pub fn test_array() {
     let arr = array2x3();
@@ -250,4 +257,46 @@ pub fn test_array_view_iter_mut() {
     assert_eq!(row4(&arr, 1), [5, 6, 7, 8]);
     assert_eq!(row4(&arr, 2), [9, 0, 11, 24]);
     assert_eq!(row4(&arr, 3), [13, 42, 60, 80]);
+}
+
+#[test]
+pub fn test_array_from_iter() {
+    let arr = (1..=6)
+        .collect::<Array<usize, Vec<usize>>>()
+        .reshape(2, 3)
+        .unwrap();
+    assert_eq!(row3(&arr, 0), [1, 2, 3]);
+    assert_eq!(row3(&arr, 1), [4, 5, 6]);
+}
+
+#[test]
+pub fn test_array_reshape_ok() {
+    let arr = array2x3().reshape(3, 2).unwrap();
+    assert_eq!(row2(arr, 0), [1, 2]);
+    assert_eq!(row2(arr, 1), [3, 4]);
+    assert_eq!(row2(arr, 2), [5, 6]);
+}
+
+#[test]
+pub fn test_array_reshape_bad() {
+    assert!(array2x3().reshape(2, 2).is_none());
+}
+
+#[test]
+pub fn test_array_as_contiguous() {
+    let arr = array4x4();
+    assert!(is_borrowed(&arr.as_contiguous().unwrap()));
+    assert!(is_borrowed(&arr.view(2, 0, 2, 4).as_contiguous().unwrap()));
+    assert!(is_borrowed(&arr.view(2, 1, 1, 3).as_contiguous().unwrap()));
+    assert!(!is_borrowed(&arr.view(2, 0, 2, 3).as_contiguous().unwrap()));
+    assert!(!is_borrowed(&arr.view(2, 1, 2, 3).as_contiguous().unwrap()));
+}
+
+#[test]
+pub fn test_array_non_contiguous_reshape() {
+    let arr = array4x4();
+    let arr = arr.view(2, 1, 2, 3);
+
+    assert!(arr.reshape(1, 6).is_none());
+    assert!(arr.as_contiguous().reshape(1, 6).is_some());
 }
