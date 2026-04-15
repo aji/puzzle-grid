@@ -401,6 +401,13 @@ where
             next: 0,
         }
     }
+
+    pub fn assign_from<It>(&mut self, other: It)
+    where
+        It: Iterator<Item = T>,
+    {
+        self.iter_mut().zip(other).for_each(|(x, y)| *x = y);
+    }
 }
 
 impl<T, B> Index<usize> for Array<T, B>

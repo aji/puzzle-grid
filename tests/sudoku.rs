@@ -1,6 +1,7 @@
 use puzzle_grid::{
     array::ArrayView,
     grid::{Grid, GridBuilder, LayerBuffer},
+    iter::IteratorExt,
 };
 
 struct SudokuPuzzle {
@@ -76,14 +77,11 @@ fn test_sudoku() {
 
     assert!(!puz.is_valid());
 
-    let _ = {
-        let mut cells = puz.digits.cells_mut();
-        for r in 0..9 {
-            for c in 0..9 {
-                cells[(r, c)] = Some(GRID[r][c]);
-            }
-        }
-    };
+    puz.digits = GRID
+        .as_flattened()
+        .iter()
+        .map(|x| Some(*x))
+        .into_grid_layer(&puz.grid);
 
     assert!(puz.is_valid());
 }
