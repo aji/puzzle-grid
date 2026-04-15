@@ -272,12 +272,20 @@ where
         }
     }
 
-    pub fn as_ref<'a>(&'a self) -> Array<T, &'a [T]> {
+    pub fn as_ref<'a>(&'a self) -> ArrayView<'a, T> {
         Array {
             access: self.access,
             buffer: self.buffer.as_ref(),
             _phantom: PhantomData,
         }
+    }
+
+    pub fn row<'a>(&'a self, row: usize) -> ArrayView<'a, T> {
+        self.view(row, 0, 1, self.cols())
+    }
+
+    pub fn col<'a>(&'a self, col: usize) -> ArrayView<'a, T> {
+        self.view(0, col, self.rows(), 1)
     }
 
     pub fn view<'a>(
@@ -286,7 +294,7 @@ where
         col0: usize,
         rows: usize,
         cols: usize,
-    ) -> Array<T, &'a [T]> {
+    ) -> ArrayView<'a, T> {
         Array {
             access: self.access.view(row0, col0, rows, cols),
             buffer: self.buffer.as_ref(),
@@ -307,12 +315,20 @@ impl<T, B> Array<T, B>
 where
     B: AsMut<[T]>,
 {
-    pub fn as_mut<'a>(&'a mut self) -> Array<T, &'a mut [T]> {
+    pub fn as_mut<'a>(&'a mut self) -> ArrayViewMut<'a, T> {
         Array {
             access: self.access,
             buffer: self.buffer.as_mut(),
             _phantom: PhantomData,
         }
+    }
+
+    pub fn row_mut<'a>(&'a mut self, row: usize) -> ArrayViewMut<'a, T> {
+        self.view_mut(row, 0, 1, self.cols())
+    }
+
+    pub fn col_mut<'a>(&'a mut self, col: usize) -> ArrayViewMut<'a, T> {
+        self.view_mut(0, col, self.rows(), 1)
     }
 
     pub fn view_mut<'a>(
@@ -321,7 +337,7 @@ where
         col0: usize,
         rows: usize,
         cols: usize,
-    ) -> Array<T, &'a mut [T]> {
+    ) -> ArrayViewMut<'a, T> {
         Array {
             access: self.access.view(row0, col0, rows, cols),
             buffer: self.buffer.as_mut(),
