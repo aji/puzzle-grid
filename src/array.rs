@@ -244,7 +244,7 @@ pub struct Array<T, B> {
 }
 
 /// An array backed by a `Vec<T>`
-pub type ArrayBuffer<T> = Array<T, Vec<T>>;
+pub type ArrayVec<T> = Array<T, Vec<T>>;
 
 /// An array backed by a `Cow<'a, [T]>`
 pub type ArrayCow<'a, T> = Array<T, Cow<'a, [T]>>;
@@ -359,10 +359,10 @@ impl<T, B> Array<T, B> {
     }
 }
 
-impl<T> ArrayBuffer<T> {
+impl<T> ArrayVec<T> {
     /// Creates a new array of shape `(rows, cols)` initialized with
     /// `T::default()` and backed by a `Vec<T>`.
-    pub fn new_default(rows: usize, cols: usize) -> ArrayBuffer<T>
+    pub fn new_default(rows: usize, cols: usize) -> ArrayVec<T>
     where
         T: Default,
     {
@@ -377,7 +377,7 @@ impl<T> ArrayBuffer<T> {
 impl<'a, T: Clone> ArrayCow<'a, T> {
     /// Converts this `Array` into one backed by a `Vec<T>`. If the underlying
     /// buffer is borrowed, the data will be cloned.
-    pub fn into_owned(self) -> ArrayBuffer<T> {
+    pub fn into_owned(self) -> ArrayVec<T> {
         match self.buffer {
             Cow::Borrowed(_) => self.iter().cloned().collect(),
             Cow::Owned(buffer) => Array {
@@ -532,12 +532,12 @@ where
     ///
     /// ```rust
     /// # use puzzle_grid::array::Array;
-    /// # use puzzle_grid::array::ArrayBuffer;
+    /// # use puzzle_grid::array::ArrayVec;
     /// // Create the following array:
     /// //  1  2  3
     /// //  4  5  6
     /// //  7  8  9
-    /// let arr = ArrayBuffer::new(3, 3, (1..=9).collect());
+    /// let arr = ArrayVec::new(3, 3, (1..=9).collect());
     ///
     /// // Create a view of the 2x2 in the bottom right:
     /// let view = arr.view(1, 1, 2, 2);

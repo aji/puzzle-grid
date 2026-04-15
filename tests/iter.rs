@@ -1,9 +1,9 @@
-use puzzle_grid::{array::ArrayBuffer, grid::GridBuilder, iter::IteratorExt};
+use puzzle_grid::{array::ArrayVec, grid::GridBuilder, iter::IteratorExt};
 
 #[test]
 pub fn test_iter_assign_to_array() {
     let arr = {
-        let mut arr = ArrayBuffer::new_default(3, 3);
+        let mut arr = ArrayVec::new_default(3, 3);
         [1, 2, 3, 4, 5, 6, 7, 8, 9]
             .into_iter()
             .assign_to_array(&mut arr);
@@ -23,7 +23,7 @@ pub fn test_iter_assign_to_array() {
 #[test]
 pub fn test_iter_assign_to_array_short() {
     let arr = {
-        let mut arr = ArrayBuffer::new_default(3, 3);
+        let mut arr = ArrayVec::new_default(3, 3);
         [1, 2, 3, 4, 5, 6, 7, 8]
             .into_iter()
             .assign_to_array(&mut arr);
@@ -43,7 +43,7 @@ pub fn test_iter_assign_to_array_short() {
 #[test]
 pub fn test_iter_assign_to_array_long() {
     let arr = {
-        let mut arr = ArrayBuffer::new_default(3, 3);
+        let mut arr = ArrayVec::new_default(3, 3);
         [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
             .into_iter()
             .assign_to_array(&mut arr);

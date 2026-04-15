@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::array::{Array, ArrayBuffer, ArrayView, ArrayViewMut};
+use crate::array::{Array, ArrayVec, ArrayView, ArrayViewMut};
 
 pub struct GridBuilder {
     inner: GridInner,
@@ -88,7 +88,7 @@ impl<T> LayerBuffer<T> {
     {
         let data_rows = rows * 2 - 1;
         let data_cols = cols * 2 - 1;
-        let data = ArrayBuffer::new_default(data_rows, data_cols);
+        let data = ArrayVec::new_default(data_rows, data_cols);
         Layer {
             grid,
             row0,
