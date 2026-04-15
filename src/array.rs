@@ -263,6 +263,26 @@ impl<'a, T: Clone> ArrayCow<'a, T> {
     }
 }
 
+impl<'a, T> ArrayView<'a, T> {
+    pub fn into_row(self, row: usize) -> ArrayView<'a, T> {
+        let cols = self.cols();
+        self.into_view(row, 0, 1, cols)
+    }
+
+    pub fn into_col(self, col: usize) -> ArrayView<'a, T> {
+        let rows = self.rows();
+        self.into_view(0, col, rows, 1)
+    }
+
+    pub fn into_view(self, row0: usize, col0: usize, rows: usize, cols: usize) -> ArrayView<'a, T> {
+        Array {
+            access: self.access.view(row0, col0, rows, cols),
+            buffer: self.buffer,
+            _phantom: PhantomData,
+        }
+    }
+}
+
 impl<T, B> Array<T, B>
 where
     B: AsRef<[T]>,
