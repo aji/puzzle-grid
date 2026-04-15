@@ -410,7 +410,7 @@ where
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
-        let row = index / self.access.rows;
+        let row = index / self.access.cols;
         let col = index % self.access.cols;
         &self[(row, col)]
     }
@@ -421,7 +421,7 @@ where
     B: AsRef<[T]> + AsMut<[T]>,
 {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        let row = index / self.access.rows;
+        let row = index / self.access.cols;
         let col = index % self.access.cols;
         &mut self[(row, col)]
     }
