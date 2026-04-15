@@ -41,6 +41,18 @@ pub fn test_array() {
 }
 
 #[test]
+#[should_panic(expected = "cannot create array of shape 2,3 with buffer of length 1")]
+pub fn test_array_new_too_small() {
+    Array::new(2, 3, [5]);
+}
+
+#[test]
+#[should_panic(expected = "cannot create array of shape 1,1 with buffer of length 2")]
+pub fn test_array_new_too_big() {
+    Array::new(1, 1, [5, 6]);
+}
+
+#[test]
 pub fn test_array_transpose() {
     let arr = array2x3().transpose();
     assert_eq!(arr.shape(), (3, 2));
@@ -98,6 +110,12 @@ pub fn test_array_view() {
     assert_eq!(arr.shape(), (2, 3));
     assert_eq!(row3(arr, 0), [10, 11, 12]);
     assert_eq!(row3(arr, 1), [14, 15, 16]);
+}
+
+#[test]
+#[should_panic(expected = "view 2,1+2,3 out of bounds for array of shape 2,3")]
+pub fn test_array_view_too_big() {
+    array2x3().view(2, 1, 2, 3);
 }
 
 #[test]
@@ -321,4 +339,71 @@ pub fn test_array_iter_with_positions() {
     assert_eq!(it.next(), Some((1, 1, &5)));
     assert_eq!(it.next(), Some((1, 2, &6)));
     assert_eq!(it.next(), None);
+}
+
+#[test]
+pub fn test_array_windows() {
+    let arr = array4x4();
+    let mut it = arr.windows(2, 3);
+
+    let arr = it.next().unwrap();
+    assert_eq!(arr.shape(), (2, 3));
+    assert_eq!(row3(&arr, 0), [1, 2, 3]);
+    assert_eq!(row3(&arr, 1), [5, 6, 7]);
+
+    let arr = it.next().unwrap();
+    assert_eq!(row3(&arr, 0), [2, 3, 4]);
+    assert_eq!(row3(&arr, 1), [6, 7, 8]);
+
+    let arr = it.next().unwrap();
+    assert_eq!(row3(&arr, 0), [5, 6, 7]);
+    assert_eq!(row3(&arr, 1), [9, 10, 11]);
+
+    assert!(it.next().is_some());
+    assert!(it.next().is_some());
+    assert!(it.next().is_some());
+    assert!(it.next().is_none());
+}
+
+#[test]
+#[should_panic(expected = "must be nonempty")]
+pub fn test_array_windows_empty() {
+    array4x4().windows(0, 4);
+}
+
+#[test]
+pub fn test_array_windows_too_big() {
+    let arr = array4x4();
+
+    let mut it = arr.windows(5, 3);
+    assert!(it.next().is_none());
+
+    let mut it = arr.windows(3, 5);
+    assert!(it.next().is_none());
+}
+
+#[test]
+pub fn test_array_iter_rows() {
+    let arr = array2x3();
+    let mut it = arr.iter_rows();
+    let row0 = it.next().unwrap();
+    let row1 = it.next().unwrap();
+    assert!(it.next().is_none());
+    assert_eq!(row0.shape(), (1, 3));
+    assert_eq!(row3(&row0, 0), [1, 2, 3]);
+    assert_eq!(row3(&row1, 0), [4, 5, 6]);
+}
+
+#[test]
+pub fn test_array_iter_cols() {
+    let arr = array2x3();
+    let mut it = arr.iter_cols();
+    let col0 = it.next().unwrap();
+    let col1 = it.next().unwrap();
+    let col2 = it.next().unwrap();
+    assert!(it.next().is_none());
+    assert_eq!(col0.shape(), (2, 1));
+    assert_eq!([col0[0], col0[1]], [1, 4]);
+    assert_eq!([col1[0], col1[1]], [2, 5]);
+    assert_eq!([col2[0], col2[1]], [3, 6]);
 }

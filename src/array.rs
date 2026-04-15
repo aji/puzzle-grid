@@ -48,8 +48,12 @@ impl ArrayAccess {
     fn view(&self, row0: usize, col0: usize, rows: usize, cols: usize) -> ArrayAccess {
         let row1 = row0 + rows;
         let col1 = col0 + cols;
-        assert!(row0 < self.rows && row1 <= self.rows);
-        assert!(col0 < self.cols && col1 <= self.cols);
+        assert!(
+            row0 < self.rows && row1 <= self.rows && col0 < self.cols && col1 <= self.cols,
+            "view {row0},{col0}+{rows},{cols} out of bounds for array of shape {},{}",
+            self.rows,
+            self.cols
+        );
         ArrayAccess {
             rows,
             cols,
@@ -81,7 +85,7 @@ impl ArrayAccess {
         let nc = cols + 1;
         ArrayAccess {
             rows: (self.rows + rows) / nr,
-            cols: (self.cols + rows) / nr,
+            cols: (self.cols + cols) / nc,
             row_stride: self.row_stride * nr as isize,
             col_stride: self.col_stride * nc as isize,
             offset: self.offset,
@@ -289,7 +293,11 @@ where
 {
     pub fn new(rows: usize, cols: usize, buf: B) -> Array<T, B> {
         let access = ArrayAccess::new(rows, cols);
-        assert!(buf.as_ref().len() == access.len());
+        assert!(
+            buf.as_ref().len() == access.len(),
+            "cannot create array of shape {rows},{cols} with buffer of length {}",
+            buf.as_ref().len()
+        );
         Array {
             access,
             buffer: buf,
@@ -357,6 +365,27 @@ where
             buffer: self.buffer.as_ref(),
             next: 0,
         }
+    }
+
+    pub fn windows<'a>(&'a self, rows: usize, cols: usize) -> Windows<'a, T> {
+        if rows == 0 || cols == 0 {
+            panic!("windows({rows}, {cols}): must be nonempty");
+        }
+        Windows {
+            access: self.access,
+            buffer: self.buffer.as_ref(),
+            next: 0,
+            rows,
+            cols,
+        }
+    }
+
+    pub fn iter_rows<'a>(&'a self) -> Windows<'a, T> {
+        self.windows(1, self.cols())
+    }
+
+    pub fn iter_cols<'a>(&'a self) -> Windows<'a, T> {
+        self.windows(self.rows(), 1)
     }
 }
 
@@ -441,7 +470,12 @@ where
     type Output = T;
 
     fn index(&self, (row, col): (usize, usize)) -> &Self::Output {
-        assert!(row < self.rows() && col < self.cols());
+        assert!(
+            row < self.rows() && col < self.cols(),
+            "index ({row},{col}) out of bounds for array of shape {},{}",
+            self.rows(),
+            self.cols()
+        );
         let idx = self.access.to_offset(row as isize, col as isize);
         let buf = self.buffer.as_ref();
         assert!(0 <= idx && (idx as usize) < buf.len());
@@ -454,7 +488,12 @@ where
     B: AsRef<[T]> + AsMut<[T]>,
 {
     fn index_mut(&mut self, (row, col): (usize, usize)) -> &mut Self::Output {
-        assert!(row < self.rows() && col < self.cols());
+        assert!(
+            row < self.rows() && col < self.cols(),
+            "index ({row},{col}) out of bounds for array of shape {},{}",
+            self.rows(),
+            self.cols()
+        );
         let idx = self.access.to_offset(row as isize, col as isize);
         let buf = self.buffer.as_mut();
         assert!(0 <= idx && (idx as usize) < buf.len());
@@ -561,5 +600,48 @@ impl<'a, T> ArrayIterator for IterMut<'a, T> {
                 .as_mut()
                 .map(|x| (row, col, x))
         }
+    }
+}
+
+pub struct Windows<'a, T> {
+    access: ArrayAccess,
+    buffer: &'a [T],
+    next: usize,
+    rows: usize,
+    cols: usize,
+}
+
+impl<'a, T> Iterator for Windows<'a, T> {
+    type Item = Array<T, &'a [T]>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_with_position().map(|(_, _, x)| x)
+    }
+}
+
+impl<'a, T> ArrayIterator for Windows<'a, T> {
+    fn next_with_position(&mut self) -> Option<(usize, usize, Self::Item)> {
+        if self.rows > self.access.rows || self.cols > self.access.cols {
+            return None;
+        }
+
+        let itrows = self.access.rows - self.rows + 1;
+        let itcols = self.access.cols - self.cols + 1;
+        if self.next >= itrows * itcols {
+            return None;
+        }
+
+        let index = self.next;
+        self.next += 1;
+
+        let row = index / itcols;
+        let col = index % itcols;
+
+        let item = Array {
+            access: self.access.view(row, col, self.rows, self.cols),
+            buffer: self.buffer,
+            _phantom: PhantomData,
+        };
+        Some((row, col, item))
     }
 }
