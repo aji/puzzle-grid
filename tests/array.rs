@@ -1,6 +1,6 @@
 use std::borrow::Borrow;
 
-use puzzle_grid::array::Array;
+use puzzle_grid::array::{Array, ArrayIterator};
 
 const ARRAY_BUFFER_2X3: [usize; 6] = [1, 2, 3, 4, 5, 6];
 const ARRAY_BUFFER_4X4: [usize; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
@@ -308,4 +308,17 @@ pub fn test_array_spaced() {
     assert_eq!(arr.shape(), (2, 2));
     assert_eq!(row2(&arr, 0), [1, 4]);
     assert_eq!(row2(&arr, 1), [9, 12]);
+}
+
+#[test]
+pub fn test_array_iter_with_positions() {
+    let arr = array2x3();
+    let mut it = arr.iter().with_positions();
+    assert_eq!(it.next(), Some((0, 0, &1)));
+    assert_eq!(it.next(), Some((0, 1, &2)));
+    assert_eq!(it.next(), Some((0, 2, &3)));
+    assert_eq!(it.next(), Some((1, 0, &4)));
+    assert_eq!(it.next(), Some((1, 1, &5)));
+    assert_eq!(it.next(), Some((1, 2, &6)));
+    assert_eq!(it.next(), None);
 }

@@ -471,6 +471,29 @@ where
     }
 }
 
+pub trait ArrayIterator: Iterator {
+    fn next_with_position(&mut self) -> Option<(usize, usize, Self::Item)>;
+
+    fn with_positions(self) -> WithPositions<Self>
+    where
+        Self: Sized,
+    {
+        WithPositions { inner: self }
+    }
+}
+
+pub struct WithPositions<It> {
+    inner: It,
+}
+
+impl<It: ArrayIterator> Iterator for WithPositions<It> {
+    type Item = (usize, usize, It::Item);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next_with_position()
+    }
+}
+
 pub struct Iter<'a, T> {
     access: ArrayAccess,
     buffer: &'a [T],
@@ -481,6 +504,12 @@ impl<'a, T> Iterator for Iter<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
+        self.next_with_position().map(|(_, _, x)| x)
+    }
+}
+
+impl<'a, T> ArrayIterator for Iter<'a, T> {
+    fn next_with_position(&mut self) -> Option<(usize, usize, Self::Item)> {
         if self.next >= self.access.len() {
             return None;
         }
@@ -492,7 +521,7 @@ impl<'a, T> Iterator for Iter<'a, T> {
         let col = index % self.access.cols;
         let idx = self.access.to_offset(row as isize, col as isize);
 
-        Some(&self.buffer[idx as usize])
+        Some((row, col, &self.buffer[idx as usize]))
     }
 }
 
@@ -506,6 +535,12 @@ impl<'a, T> Iterator for IterMut<'a, T> {
     type Item = &'a mut T;
 
     fn next(&mut self) -> Option<Self::Item> {
+        self.next_with_position().map(|(_, _, x)| x)
+    }
+}
+
+impl<'a, T> ArrayIterator for IterMut<'a, T> {
+    fn next_with_position(&mut self) -> Option<(usize, usize, Self::Item)> {
         if self.next >= self.access.len() {
             return None;
         }
@@ -520,7 +555,11 @@ impl<'a, T> Iterator for IterMut<'a, T> {
         // SAFETY: ArrayAccess can never be aliasing
         unsafe {
             assert!(0 <= idx && (idx as usize) < self.buffer.len());
-            self.buffer.as_mut_ptr().add(idx as usize).as_mut()
+            self.buffer
+                .as_mut_ptr()
+                .add(idx as usize)
+                .as_mut()
+                .map(|x| (row, col, x))
         }
     }
 }
