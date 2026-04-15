@@ -23,7 +23,7 @@ A basic Sudoku with no clues outside the grid could be represented as follows:
 ```rust
 struct SudokuPuzzle {
     grid: Grid,
-    digits: LayerBuffer<Option<u8>>,
+    digits: LayerVec<Option<u8>>,
 }
 
 type SudokuSet<'a> = ArrayView<'a, Option<u8>>;

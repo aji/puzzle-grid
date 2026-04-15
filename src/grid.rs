@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::array::{Array, ArrayVec, ArrayView, ArrayViewMut};
+use crate::array::{Array, ArrayBuffer, ArrayVec, ArrayView, ArrayViewMut};
 
 pub struct GridBuilder {
     inner: GridInner,
@@ -40,8 +40,8 @@ pub struct Grid {
 }
 
 impl Grid {
-    pub fn new_full_layer<T: Default>(&self) -> LayerBuffer<T> {
-        LayerBuffer::new(
+    pub fn new_full_layer<T: Default>(&self) -> LayerVec<T> {
+        LayerVec::new(
             self.clone(),
             0,
             0,
@@ -50,8 +50,8 @@ impl Grid {
         )
     }
 
-    pub fn new_grid_layer<T: Default>(&self) -> LayerBuffer<T> {
-        LayerBuffer::new(
+    pub fn new_grid_layer<T: Default>(&self) -> LayerVec<T> {
+        LayerVec::new(
             self.clone(),
             self.inner.grid_row0,
             self.inner.grid_col0,
@@ -71,18 +71,18 @@ struct GridInner {
 }
 
 #[allow(unused)]
-pub struct Layer<T, B> {
+pub struct Layer<B: ArrayBuffer> {
     grid: Grid,
     row0: usize,
     col0: usize,
-    data: Array<T, B>,
+    data: Array<B>,
 }
 
-pub type LayerBuffer<T> = Layer<T, Vec<T>>;
-pub type LayerView<'a, T> = Layer<T, &'a [T]>;
+pub type LayerVec<T> = Layer<Vec<T>>;
+pub type LayerView<'a, T> = Layer<&'a [T]>;
 
-impl<T> LayerBuffer<T> {
-    fn new(grid: Grid, row0: usize, col0: usize, rows: usize, cols: usize) -> LayerBuffer<T>
+impl<T> LayerVec<T> {
+    fn new(grid: Grid, row0: usize, col0: usize, rows: usize, cols: usize) -> LayerVec<T>
     where
         T: Default,
     {

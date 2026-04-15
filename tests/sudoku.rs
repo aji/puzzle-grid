@@ -1,13 +1,13 @@
 use puzzle_grid::{
     array::ArrayView,
-    grid::{Grid, GridBuilder, LayerBuffer},
+    grid::{Grid, GridBuilder, LayerVec},
     iter::IteratorExt,
 };
 
 struct SudokuPuzzle {
     #[allow(unused)]
     grid: Grid,
-    digits: LayerBuffer<Option<u8>>,
+    digits: LayerVec<Option<u8>>,
 }
 
 type SudokuSet<'a> = ArrayView<'a, Option<u8>>;

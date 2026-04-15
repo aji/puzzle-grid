@@ -1,12 +1,11 @@
 //! This module provides the [`Array`] type for accessing a flat buffer of
 //! values as a 2D array.
 //!
-//! Most functionality is available to buffers implementing `AsRef<[T]>` or
-//! `AsMut<[T]>`. In addition to the buffer itself, [`Array`] also includes
-//! parameters for mapping (row, column) pairs or linear indices to offsets into
-//! the underlying buffer. Many array operations, such as transformations or
-//! creating subviews, are implemented by altering these parameters and leaving
-//! the underlying buffer untouched.
+//! In addition to the buffer itself, [`Array`] also includes parameters for
+//! mapping (row, column) pairs or linear indices to offsets into the underlying
+//! buffer. Many array operations, such as transformations or creating subviews,
+//! are implemented by altering these parameters and leaving the underlying
+//! buffer untouched.
 //!
 //! # Indexing
 //!
@@ -80,7 +79,6 @@
 
 use std::{
     borrow::Cow,
-    marker::PhantomData,
     ops::{Index, IndexMut},
 };
 
@@ -233,29 +231,59 @@ impl ArrayAccess {
     }
 }
 
-/// A wrapper around a buffer `B` containing values of type `T`.
+/// A trait indicating types that can be used as mutable array buffers.
+pub trait ArrayBufferMut: ArrayBuffer + AsMut<[Self::Item]> {}
+
+/// A trait indicating types that can be used as array buffers.
+pub trait ArrayBuffer: AsRef<[Self::Item]> {
+    type Item;
+}
+
+impl<T> ArrayBufferMut for Vec<T> {}
+impl<T> ArrayBuffer for Vec<T> {
+    type Item = T;
+}
+
+impl<T, const N: usize> ArrayBufferMut for [T; N] {}
+impl<T, const N: usize> ArrayBuffer for [T; N] {
+    type Item = T;
+}
+
+impl<'a, T: Clone> ArrayBuffer for Cow<'a, [T]> {
+    type Item = T;
+}
+
+impl<'a, T> ArrayBuffer for &'a [T] {
+    type Item = T;
+}
+
+impl<'a, T> ArrayBufferMut for &'a mut [T] {}
+impl<'a, T> ArrayBuffer for &'a mut [T] {
+    type Item = T;
+}
+
+/// A 2D array backed by a buffer `B`.
 ///
 /// See the [module-level docs](`crate::array`) for more information.
 #[derive(Copy, Clone)]
-pub struct Array<T, B> {
+pub struct Array<B: ArrayBuffer> {
     access: ArrayAccess,
     buffer: B,
-    _phantom: PhantomData<T>,
 }
 
 /// An array backed by a `Vec<T>`
-pub type ArrayVec<T> = Array<T, Vec<T>>;
+pub type ArrayVec<T> = Array<Vec<T>>;
 
 /// An array backed by a `Cow<'a, [T]>`
-pub type ArrayCow<'a, T> = Array<T, Cow<'a, [T]>>;
+pub type ArrayCow<'a, T> = Array<Cow<'a, [T]>>;
 
 /// An array backed by a `&'a [T]`
-pub type ArrayView<'a, T> = Array<T, &'a [T]>;
+pub type ArrayView<'a, T> = Array<&'a [T]>;
 
 /// An array backed by a `&'a mut [T]`
-pub type ArrayViewMut<'a, T> = Array<T, &'a mut [T]>;
+pub type ArrayViewMut<'a, T> = Array<&'a mut [T]>;
 
-impl<T, B> Array<T, B> {
+impl<B: ArrayBuffer> Array<B> {
     /// Consumes the `Array` and returns the underlying buffer.
     pub fn unwrap(self) -> B {
         self.buffer
@@ -290,7 +318,6 @@ impl<T, B> Array<T, B> {
         Array {
             access: f(&self.access),
             buffer: self.buffer,
-            _phantom: PhantomData,
         }
     }
 
@@ -301,7 +328,6 @@ impl<T, B> Array<T, B> {
         Some(Array {
             access: f(&self.access)?,
             buffer: self.buffer,
-            _phantom: PhantomData,
         })
     }
 
@@ -383,7 +409,6 @@ impl<'a, T: Clone> ArrayCow<'a, T> {
             Cow::Owned(buffer) => Array {
                 access: self.access,
                 buffer,
-                _phantom: PhantomData,
             },
         }
     }
@@ -413,21 +438,17 @@ impl<'a, T> ArrayView<'a, T> {
         Array {
             access: self.access.view(row0, col0, rows, cols),
             buffer: self.buffer,
-            _phantom: PhantomData,
         }
     }
 }
 
-impl<T, B> Array<T, B>
-where
-    B: AsRef<[T]>,
-{
+impl<B: ArrayBuffer> Array<B> {
     /// Creates a new array of shape `(rows, cols)` that wraps the given buffer.
     ///
     /// # Panics
     ///
     /// This function panics if the buffer size is not `rows * cols`.
-    pub fn new(rows: usize, cols: usize, buf: B) -> Array<T, B> {
+    pub fn new(rows: usize, cols: usize, buf: B) -> Array<B> {
         let access = ArrayAccess::new(rows, cols);
         assert!(
             buf.as_ref().len() == access.len(),
@@ -437,12 +458,11 @@ where
         Array {
             access,
             buffer: buf,
-            _phantom: PhantomData,
         }
     }
 
     /// Creates a new array of shape `(1, buf.len())` that wraps the given buffer.
-    pub fn flat(buf: B) -> Array<T, B> {
+    pub fn flat(buf: B) -> Array<B> {
         Array::new(1, buf.as_ref().len(), buf)
     }
 
@@ -471,32 +491,29 @@ where
     ///
     /// Note that [`reshape`][`Self::reshape`] can still fail if the old and new
     /// sizes do not match, so be careful when using `.unwrap()`.
-    pub fn as_contiguous<'a>(&'a self) -> ArrayCow<'a, T>
+    pub fn as_contiguous<'a>(&'a self) -> ArrayCow<'a, B::Item>
     where
-        T: Clone,
+        B::Item: Clone,
     {
         if self.access.is_contiguous_increasing() {
             Array {
                 access: self.access,
                 buffer: Cow::Borrowed(self.buffer.as_ref()),
-                _phantom: PhantomData,
             }
         } else {
             let buffer = self.iter().cloned().collect();
             Array {
                 access: ArrayAccess::new(self.rows(), self.cols()),
                 buffer: Cow::Owned(buffer),
-                _phantom: PhantomData,
             }
         }
     }
 
     /// Creates an `Array` backed by a reference to this array's buffer.
-    pub fn as_ref<'a>(&'a self) -> ArrayView<'a, T> {
+    pub fn as_ref<'a>(&'a self) -> ArrayView<'a, B::Item> {
         Array {
             access: self.access,
             buffer: self.buffer.as_ref(),
-            _phantom: PhantomData,
         }
     }
 
@@ -510,7 +527,7 @@ where
     /// assert_eq!(row[0], 3);
     /// assert_eq!(row[1], 4);
     /// ```
-    pub fn row<'a>(&'a self, row: usize) -> ArrayView<'a, T> {
+    pub fn row<'a>(&'a self, row: usize) -> ArrayView<'a, B::Item> {
         self.view(row, 0, 1, self.cols())
     }
 
@@ -524,7 +541,7 @@ where
     /// assert_eq!(col[0], 2);
     /// assert_eq!(col[1], 4);
     /// ```
-    pub fn col<'a>(&'a self, col: usize) -> ArrayView<'a, T> {
+    pub fn col<'a>(&'a self, col: usize) -> ArrayView<'a, B::Item> {
         self.view(0, col, self.rows(), 1)
     }
 
@@ -553,11 +570,10 @@ where
         col0: usize,
         rows: usize,
         cols: usize,
-    ) -> ArrayView<'a, T> {
+    ) -> ArrayView<'a, B::Item> {
         Array {
             access: self.access.view(row0, col0, rows, cols),
             buffer: self.buffer.as_ref(),
-            _phantom: PhantomData,
         }
     }
 
@@ -575,7 +591,7 @@ where
     /// assert_eq!(it.next(), Some(&4));
     /// assert_eq!(it.next(), None);
     /// ```
-    pub fn iter<'a>(&'a self) -> Iter<'a, T> {
+    pub fn iter<'a>(&'a self) -> Iter<'a, B::Item> {
         Iter {
             access: self.access,
             buffer: self.buffer.as_ref(),
@@ -591,7 +607,7 @@ where
     ///
     /// This function panics if `rows` or `cols` is zero, since the meaning of
     /// iteration over empty views is unclear.
-    pub fn iter_views<'a>(&'a self, rows: usize, cols: usize) -> IterViews<'a, T> {
+    pub fn iter_views<'a>(&'a self, rows: usize, cols: usize) -> IterViews<'a, B::Item> {
         if rows == 0 || cols == 0 {
             panic!("iter_views({rows}, {cols}): must be nonempty");
         }
@@ -610,7 +626,7 @@ where
     /// # Panics
     ///
     /// This function panics if `self.cols()` is 0.
-    pub fn iter_rows<'a>(&'a self) -> IterViews<'a, T> {
+    pub fn iter_rows<'a>(&'a self) -> IterViews<'a, B::Item> {
         self.iter_views(1, self.cols())
     }
 
@@ -620,31 +636,27 @@ where
     /// # Panics
     ///
     /// This function panics if `self.rows()` is 0.
-    pub fn iter_cols<'a>(&'a self) -> IterViews<'a, T> {
+    pub fn iter_cols<'a>(&'a self) -> IterViews<'a, B::Item> {
         self.iter_views(self.rows(), 1)
     }
 }
 
-impl<T, B> Array<T, B>
-where
-    B: AsMut<[T]>,
-{
+impl<B: ArrayBufferMut> Array<B> {
     /// Creates an `Array` backed by a mutable reference to this array's buffer.
-    pub fn as_mut<'a>(&'a mut self) -> ArrayViewMut<'a, T> {
+    pub fn as_mut<'a>(&'a mut self) -> ArrayViewMut<'a, B::Item> {
         Array {
             access: self.access,
             buffer: self.buffer.as_mut(),
-            _phantom: PhantomData,
         }
     }
 
     /// Creates a mutable view of the given row.
-    pub fn row_mut<'a>(&'a mut self, row: usize) -> ArrayViewMut<'a, T> {
+    pub fn row_mut<'a>(&'a mut self, row: usize) -> ArrayViewMut<'a, B::Item> {
         self.view_mut(row, 0, 1, self.cols())
     }
 
     /// Creates a mutable view of the given column.
-    pub fn col_mut<'a>(&'a mut self, col: usize) -> ArrayViewMut<'a, T> {
+    pub fn col_mut<'a>(&'a mut self, col: usize) -> ArrayViewMut<'a, B::Item> {
         self.view_mut(0, col, self.rows(), 1)
     }
 
@@ -655,11 +667,10 @@ where
         col0: usize,
         rows: usize,
         cols: usize,
-    ) -> ArrayViewMut<'a, T> {
+    ) -> ArrayViewMut<'a, B::Item> {
         Array {
             access: self.access.view(row0, col0, rows, cols),
             buffer: self.buffer.as_mut(),
-            _phantom: PhantomData,
         }
     }
 
@@ -675,7 +686,7 @@ where
     ///
     /// In the future, this function will panic if the access pattern is
     /// aliasing, but this check is not currently implemented.
-    pub fn iter_mut<'a>(&'a mut self) -> IterMut<'a, T> {
+    pub fn iter_mut<'a>(&'a mut self) -> IterMut<'a, B::Item> {
         IterMut {
             access: self.access,
             buffer: self.buffer.as_mut(),
@@ -688,17 +699,14 @@ where
     /// same length. Assignment stops whenever either iterator runs out.
     pub fn assign_from<It>(&mut self, other: It)
     where
-        It: Iterator<Item = T>,
+        It: Iterator<Item = B::Item>,
     {
         self.iter_mut().zip(other).for_each(|(x, y)| *x = y);
     }
 }
 
-impl<T, B> Index<usize> for Array<T, B>
-where
-    B: AsRef<[T]>,
-{
-    type Output = T;
+impl<B: ArrayBuffer> Index<usize> for Array<B> {
+    type Output = B::Item;
 
     /// Index into the array using a row-major offset.
     fn index(&self, index: usize) -> &Self::Output {
@@ -708,10 +716,7 @@ where
     }
 }
 
-impl<T, B> IndexMut<usize> for Array<T, B>
-where
-    B: AsRef<[T]> + AsMut<[T]>,
-{
+impl<B: ArrayBufferMut> IndexMut<usize> for Array<B> {
     /// Index into the array using a row-major offset.
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         let row = index / self.access.cols;
@@ -720,11 +725,8 @@ where
     }
 }
 
-impl<T, B> Index<(usize, usize)> for Array<T, B>
-where
-    B: AsRef<[T]>,
-{
-    type Output = T;
+impl<B: ArrayBuffer> Index<(usize, usize)> for Array<B> {
+    type Output = B::Item;
 
     fn index(&self, (row, col): (usize, usize)) -> &Self::Output {
         assert!(
@@ -740,10 +742,7 @@ where
     }
 }
 
-impl<T, B> IndexMut<(usize, usize)> for Array<T, B>
-where
-    B: AsRef<[T]> + AsMut<[T]>,
-{
+impl<B: ArrayBufferMut> IndexMut<(usize, usize)> for Array<B> {
     fn index_mut(&mut self, (row, col): (usize, usize)) -> &mut Self::Output {
         assert!(
             row < self.rows() && col < self.cols(),
@@ -758,11 +757,8 @@ where
     }
 }
 
-impl<T, B> FromIterator<T> for Array<T, B>
-where
-    B: FromIterator<T> + AsRef<[T]>,
-{
-    fn from_iter<It: IntoIterator<Item = T>>(iter: It) -> Self {
+impl<B: ArrayBuffer + FromIterator<B::Item>> FromIterator<B::Item> for Array<B> {
+    fn from_iter<It: IntoIterator<Item = B::Item>>(iter: It) -> Self {
         Array::flat(B::from_iter(iter))
     }
 }
@@ -900,7 +896,7 @@ pub struct IterViews<'a, T> {
 }
 
 impl<'a, T> Iterator for IterViews<'a, T> {
-    type Item = Array<T, &'a [T]>;
+    type Item = ArrayView<'a, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.next_with_position().map(|(_, _, x)| x)
@@ -928,7 +924,6 @@ impl<'a, T> ArrayIterator for IterViews<'a, T> {
         let item = Array {
             access: self.access.view(row, col, self.rows, self.cols),
             buffer: self.buffer,
-            _phantom: PhantomData,
         };
         Some((row, col, item))
     }

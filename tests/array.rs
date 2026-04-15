@@ -1,26 +1,26 @@
 use std::borrow::Borrow;
 
-use puzzle_grid::array::{Array, ArrayIterator};
+use puzzle_grid::array::{Array, ArrayBuffer, ArrayIterator, ArrayVec};
 
 const ARRAY_BUFFER_2X3: [usize; 6] = [1, 2, 3, 4, 5, 6];
 const ARRAY_BUFFER_4X4: [usize; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 
-fn array2x3() -> Array<usize, [usize; 6]> {
+fn array2x3() -> Array<[usize; 6]> {
     Array::new(2, 3, ARRAY_BUFFER_2X3)
 }
-fn array4x4() -> Array<usize, [usize; 16]> {
+fn array4x4() -> Array<[usize; 16]> {
     Array::new(4, 4, ARRAY_BUFFER_4X4)
 }
 
-fn row2<B: AsRef<[usize]>>(arr: impl Borrow<Array<usize, B>>, row: usize) -> [usize; 2] {
+fn row2<B: ArrayBuffer<Item = usize>>(arr: impl Borrow<Array<B>>, row: usize) -> [usize; 2] {
     let arr = arr.borrow();
     [arr[(row, 0)], arr[(row, 1)]]
 }
-fn row3<B: AsRef<[usize]>>(arr: impl Borrow<Array<usize, B>>, row: usize) -> [usize; 3] {
+fn row3<B: ArrayBuffer<Item = usize>>(arr: impl Borrow<Array<B>>, row: usize) -> [usize; 3] {
     let arr = arr.borrow();
     [arr[(row, 0)], arr[(row, 1)], arr[(row, 2)]]
 }
-fn row4<B: AsRef<[usize]>>(arr: impl Borrow<Array<usize, B>>, row: usize) -> [usize; 4] {
+fn row4<B: ArrayBuffer<Item = usize>>(arr: impl Borrow<Array<B>>, row: usize) -> [usize; 4] {
     let arr = arr.borrow();
     [arr[(row, 0)], arr[(row, 1)], arr[(row, 2)], arr[(row, 3)]]
 }
@@ -279,10 +279,7 @@ pub fn test_array_view_iter_mut() {
 
 #[test]
 pub fn test_array_from_iter() {
-    let arr = (1..=6)
-        .collect::<Array<usize, Vec<usize>>>()
-        .reshape(2, 3)
-        .unwrap();
+    let arr = ArrayVec::new(2, 3, (1..=6).collect());
     assert_eq!(row3(&arr, 0), [1, 2, 3]);
     assert_eq!(row3(&arr, 1), [4, 5, 6]);
 }

@@ -1,18 +1,18 @@
 use crate::{
-    array::Array,
-    grid::{Grid, LayerBuffer},
+    array::{Array, ArrayBufferMut},
+    grid::{Grid, LayerVec},
 };
 
 pub trait IteratorExt: Iterator {
-    fn assign_to_array<B>(self, arr: &mut Array<Self::Item, B>)
+    fn assign_to_array<B>(self, arr: &mut Array<B>)
     where
         Self: Sized,
-        B: AsMut<[Self::Item]>,
+        B: ArrayBufferMut<Item = Self::Item>,
     {
         arr.assign_from(self);
     }
 
-    fn into_full_layer(self, grid: &Grid) -> LayerBuffer<Self::Item>
+    fn into_full_layer(self, grid: &Grid) -> LayerVec<Self::Item>
     where
         Self: Sized,
         Self::Item: Default,
@@ -22,7 +22,7 @@ pub trait IteratorExt: Iterator {
         layer
     }
 
-    fn into_grid_layer(self, grid: &Grid) -> LayerBuffer<Self::Item>
+    fn into_grid_layer(self, grid: &Grid) -> LayerVec<Self::Item>
     where
         Self: Sized,
         Self::Item: Default,
