@@ -342,9 +342,9 @@ pub fn test_array_iter_with_positions() {
 }
 
 #[test]
-pub fn test_array_windows() {
+pub fn test_array_iter_views() {
     let arr = array4x4();
-    let mut it = arr.windows(2, 3);
+    let mut it = arr.iter_views(2, 3);
 
     let arr = it.next().unwrap();
     assert_eq!(arr.shape(), (2, 3));
@@ -367,18 +367,18 @@ pub fn test_array_windows() {
 
 #[test]
 #[should_panic(expected = "must be nonempty")]
-pub fn test_array_windows_empty() {
-    array4x4().windows(0, 4);
+pub fn test_array_iter_views_empty() {
+    array4x4().iter_views(0, 4);
 }
 
 #[test]
-pub fn test_array_windows_too_big() {
+pub fn test_array_iter_views_too_big() {
     let arr = array4x4();
 
-    let mut it = arr.windows(5, 3);
+    let mut it = arr.iter_views(5, 3);
     assert!(it.next().is_none());
 
-    let mut it = arr.windows(3, 5);
+    let mut it = arr.iter_views(3, 5);
     assert!(it.next().is_none());
 }
 
